@@ -3,7 +3,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 import datetime
 import logging
-import os # ⭐ Render এর জন্য প্রয়োজন!
+import os # Render Environment Variables এর জন্য প্রয়োজন
 
 # ⭐ লগিং সেটআপ ⭐
 logging.basicConfig(
@@ -17,8 +17,12 @@ logger = logging.getLogger(__name__)
 
 # ⭐ টোকেন ও আইডি Render Environment Variables থেকে নেওয়া হচ্ছে ⭐
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") 
-ADMIN_USER_ID = int(os.environ.get("ADMIN_USER_ID"))
-
+try:
+    ADMIN_USER_ID = int(os.environ.get("ADMIN_USER_ID"))
+except (TypeError, ValueError):
+    # যদি Render-এ ID সেট না করা থাকে, তবে একটি সেফটি ডিফল্ট মান
+    ADMIN_USER_ID = 12345678 # এটি আপনার সঠিক অ্যাডমিন আইডি দিয়ে প্রতিস্থাপন করা নিশ্চিত করুন
+    
 # ✅ আপনার Adsterra Smart Link
 ADSTERRA_DIRECT_LINK = "https://roughlydispleasureslayer.com/ykawxa7tnr?key=bacb6ca047e4fabf73e54c2eaf85b2a5" 
 # টাস্কের জন্য আপনার ল্যান্ডিং পেজ
@@ -305,6 +309,49 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await update.message.reply_text("❌ অ্যাডমিন কমান্ডের ব্যবহার: /checkuser <ইউজার_আইডি>")
 
 
+    # --- সাধারণ মেসেজ (উইথড্রয়াল রিকোয়েস্ট) ---
+    else:
+        logger.info(f"Withdrawal request from user {user_id}: {text}")
+        # উইথড্রয়াল রিকোয়েস্ট অ্যাডমিনকে ফরোয়ার্ড করার জন্য
+        await context.bot.send_message(
+            chat_id=ADMIN_USER_ID,
+            text=f"💸 **নতুন উইথড্রয়াল রিকোয়েস্ট!**\n"
+                 f"ইউজার ID: `{user_id}`\n"
+                 f"মেসেজ: {text}"
+        )
+
+        await update.message.reply_text(
+            "আপনার মেসেজটি (সম্ভাব্য উইথড্রয়াল রিকোয়েস্ট) অ্যাডমিনকে পাঠানো হয়েছে। এটি ম্যানুয়ালি দেখা হচ্ছে।\n"
+            "অন্যান্য অপশনের জন্য মেনু ব্যবহার করুন:",
+            reply_markup=get_main_keyboard(user_id)
+        )
+
+# --- ৭. বট চালানো (MAIN EXECUTION) ---
+
+def main() -> None:
+    """বট অ্যাপ্লিকেশন শুরু করে"""
+    
+    # টোকেন ও আইডি ভেরিয়েবল চেক (Render এ না পেলে বট চালু হবে না)
+    if not TELEGRAM_BOT_TOKEN or not ADMIN_USER_ID:
+        logger.error("❌ BOT_TOKEN বা ADMIN_ID এনভায়রনমেন্ট ভেরিয়েবলে পাওয়া যায়নি।")
+        return
+    
+    logger.info("Starting Smart Earn Bot...") 
+    
+    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+
+    # হ্যান্ডলার
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(button_callback))
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), message_handler)) 
+
+    print("✅ Smart Earn Bot Running... Check console for logs.")
+    
+    # ⭐ Render এর জন্য এটিই ব্যবহার করুন
+    application.run_non_blocking()
+
+if __name__ == '__main__':
+    main()
     # --- সাধারণ মেসেজ (উইথড্রয়াল রিকোয়েস্ট) ---
     else:
         logger.info(f"Withdrawal request from user {user_id}: {text}")
